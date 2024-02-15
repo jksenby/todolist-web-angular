@@ -7,15 +7,19 @@ import { Observable } from "rxjs";
 export class TaskService {
   constructor(private http: HttpClient) {}
 
+  options = {
+    headers: new HttpHeaders({ "Content-Type": "application/json" }),
+  };
+
   createTask(body: ITask): Observable<ITask> {
-    const options = {
-      headers: new HttpHeaders({ "Content-Type": "application/json" }),
-    };
-    return this.http.post<ITask>("http://localhost:3000/tasks", body, options);
+    return this.http.post<ITask>(
+      "http://localhost:3000/tasks",
+      body,
+      this.options
+    );
   }
 
   getTasks(priority: number | null, isReady: number = 0) {
-    console.log(isReady);
     const params = new HttpParams()
       .set("priority", priority)
       .set("isReady", isReady);
@@ -23,13 +27,14 @@ export class TaskService {
   }
 
   taskToggle(id, readiness) {
-    const options = {
-      headers: new HttpHeaders({ "Content-Type": "application/json" }),
-    };
     return this.http.put<ITask>(
       "http://localhost:3000/tasks",
       { id, readiness },
-      options
+      this.options
     );
+  }
+
+  deleteTask(id) {
+    return this.http.delete(`http://localhost:3000/tasks/${id}`, this.options);
   }
 }

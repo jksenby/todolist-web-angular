@@ -2,9 +2,12 @@ import { Component, OnInit, AfterViewInit, ViewChild } from "@angular/core";
 import ITask from "../../../shared/models/task.model";
 import { TaskService } from "src/app/services/task.service";
 import { Priority } from "src/shared/enums/priority";
+import { FormControl, Validators, FormGroup } from "@angular/forms";
 
 import { MatTableDataSource } from "@angular/material/table";
 import { MatPaginator } from "@angular/material/paginator";
+
+import { DomSanitizer } from "@angular/platform-browser";
 
 @Component({
   selector: "app-home",
@@ -12,12 +15,15 @@ import { MatPaginator } from "@angular/material/paginator";
   styleUrl: "./home.component.scss",
 })
 export class HomeComponent implements OnInit, AfterViewInit {
+  createFormGroup: FormGroup;
+
   displayedColumns: string[] = [
     "name",
     "description",
     "readiness",
     "created",
     "priority",
+    "delete",
   ];
 
   pageSize: number[] = [5, 7, 10];
@@ -40,10 +46,22 @@ export class HomeComponent implements OnInit, AfterViewInit {
     message: null,
     class: null,
   };
-  constructor(private taskService: TaskService) {}
+
+  fileUrl;
+
+  constructor(
+    private taskService: TaskService,
+    private sanitizer: DomSanitizer
+  ) {}
 
   ngOnInit(): void {
     this.getTasks();
+
+    this.createFormGroup = new FormGroup({
+      nameFormControl: new FormControl("", [Validators.required]),
+      priorityFormControl: new FormControl("", [Validators.required]),
+      descriptionFormControl: new FormControl(""),
+    });
   }
 
   ngAfterViewInit(): void {
@@ -51,19 +69,26 @@ export class HomeComponent implements OnInit, AfterViewInit {
   }
 
   getTasks() {
-    this.taskService
-      .getTasks(this.priorityTask, this.isReady)
-      .subscribe((task: ITask[]) => {
+    this.taskService.getTasks(this.priorityTask, this.isReady).subscribe({
+      next: (task: ITask[]) => {
         this.task = task;
         this.totalDataLength = this.task.length;
         this.dataSource = new MatTableDataSource(this.task);
-      });
+      },
+      error: (e) => {
+        alert(e.message);
+      },
+    });
   }
 
   toggleReadiness(id, readiness) {
-    return this.taskService.taskToggle(id, !readiness).subscribe((res) => {
-      console.log(res);
-      this.getTasks();
+    return this.taskService.taskToggle(id, !readiness).subscribe({
+      next: (res) => {
+        this.getTasks();
+      },
+      error: (e) => {
+        alert(e.message);
+      },
     });
   }
 
@@ -78,6 +103,8 @@ export class HomeComponent implements OnInit, AfterViewInit {
   }
 
   createTask() {
+    if (this.createFormGroup.invalid) return;
+
     const task: ITask = {
       name: this.taskName,
       created: new Date(),
@@ -86,15 +113,38 @@ export class HomeComponent implements OnInit, AfterViewInit {
       priority: this.taskPriority,
     };
 
-    return this.taskService.createTask(task).subscribe((response) => {
-      if (response) {
+    return this.taskService.createTask(task).subscribe({
+      next: () => {
         this.serverMessage.message = "The task has created";
         this.serverMessage.class = "green";
-      } else {
-        this.serverMessage.message = "Something went wrong, please try again";
+        setTimeout(() => (this.serverMessage.message = null), 8000);
+        this.getTasks();
+      },
+      error: (e: any) => {
+        this.serverMessage.message = e.message;
         this.serverMessage.class = "red";
-      }
-      setTimeout(() => (this.serverMessage.message = null), 8000);
+      },
     });
+  }
+
+  deleteTask(id) {
+    document.querySelector("#trash" + id).classList.add("fa-bounce");
+    this.taskService.deleteTask(id).subscribe({
+      next: (response) => {
+        this.getTasks();
+      },
+      error: (e) => {
+        alert(e.message);
+      },
+    });
+  }
+
+  downloadResult() {
+    const blob = new Blob([JSON.stringify(this.task)], {
+      type: "application/octet-stream",
+    });
+    this.fileUrl = this.sanitizer.bypassSecurityTrustResourceUrl(
+      window.URL.createObjectURL(blob)
+    );
   }
 }
